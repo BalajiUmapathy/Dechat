@@ -241,7 +241,8 @@ fun ChatHeaderContent(
     onTripleClick: () -> Unit,
     onShowAppInfo: () -> Unit,
     onLocationChannelsClick: () -> Unit,
-    onLocationNotesClick: () -> Unit
+    onLocationNotesClick: () -> Unit,
+    isGuardianMode: Boolean
 ) {
     val colorScheme = MaterialTheme.colorScheme
 
@@ -292,6 +293,7 @@ fun ChatHeaderContent(
             // Main header
             MainHeader(
                 nickname = nickname,
+                isGuardianMode = isGuardianMode,
                 onNicknameChange = viewModel::setNickname,
                 onTitleClick = onShowAppInfo,
                 onTripleTitleClick = onTripleClick,
@@ -514,6 +516,7 @@ private fun ChannelHeader(
 @Composable
 private fun MainHeader(
     nickname: String,
+    isGuardianMode: Boolean,
     onNicknameChange: (String) -> Unit,
     onTitleClick: () -> Unit,
     onTripleTitleClick: () -> Unit,
@@ -557,6 +560,16 @@ private fun MainHeader(
             
             Spacer(modifier = Modifier.width(2.dp))
             
+            // Guardian Mode Indicator (Shield)
+            if (isGuardianMode) {
+                Icon(
+                    imageVector = Icons.Filled.Security, // Shield icon
+                    contentDescription = "Guardian Node Active",
+                    tint = Color(0xFF00C851), // Green shield
+                    modifier = Modifier.size(16.dp).padding(end = 2.dp)
+                )
+            }
+
             NicknameEditor(
                 value = nickname,
                 onValueChange = onNicknameChange

@@ -16,6 +16,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Alignment
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.IconButton
@@ -56,6 +58,7 @@ fun ChatScreen(viewModel: ChatViewModel, messages: List<BitchatMessage>) {
     val showMentionSuggestions by viewModel.showMentionSuggestions.observeAsState(false)
     val mentionSuggestions by viewModel.mentionSuggestions.observeAsState(emptyList())
     val showAppInfo by viewModel.showAppInfo.observeAsState(false)
+    val isGuardianMode by viewModel.isGuardianMode.observeAsState(false)
 
     var messageText by remember { mutableStateOf(TextFieldValue("")) }
     var showPasswordPrompt by remember { mutableStateOf(false) }
@@ -70,7 +73,9 @@ fun ChatScreen(viewModel: ChatViewModel, messages: List<BitchatMessage>) {
     var viewerImagePaths by remember { mutableStateOf(emptyList<String>()) }
     var initialViewerIndex by remember { mutableStateOf(0) }
     var forceScrollToBottom by remember { mutableStateOf(false) }
+
     var isScrolledUp by remember { mutableStateOf(false) }
+    var showSOSDialog by remember { mutableStateOf(false) }
 
     // Show password dialog when needed
     LaunchedEffect(showPasswordPrompt) {
@@ -234,7 +239,9 @@ fun ChatScreen(viewModel: ChatViewModel, messages: List<BitchatMessage>) {
                 currentChannel = currentChannel,
                 nickname = nickname,
                 colorScheme = colorScheme,
-                showMediaButtons = showMediaButtons
+
+                showMediaButtons = showMediaButtons,
+                onSOSClick = { showSOSDialog = true }
             )
         }
 
@@ -250,7 +257,8 @@ fun ChatScreen(viewModel: ChatViewModel, messages: List<BitchatMessage>) {
             onShowAppInfo = { viewModel.showAppInfo() },
             onPanicClear = { viewModel.panicClearAllData() },
             onLocationChannelsClick = { showLocationChannelsSheet = true },
-            onLocationNotesClick = { showLocationNotesSheet = true }
+            onLocationNotesClick = { showLocationNotesSheet = true },
+            isGuardianMode = isGuardianMode
         )
 
         // Divider under header - positioned after status bar + header height
@@ -374,6 +382,16 @@ fun ChatScreen(viewModel: ChatViewModel, messages: List<BitchatMessage>) {
         selectedMessageForSheet = selectedMessageForSheet,
         viewModel = viewModel
     )
+
+    if (showSOSDialog) {
+        SOSDialog(
+            onDismiss = { showSOSDialog = false },
+            onSendSOS = { type ->
+                 showSOSDialog = false
+                 viewModel.sendMessage("/sos $type")
+            }
+        )
+    }
 }
 
 @Composable
@@ -394,7 +412,8 @@ private fun ChatInputSection(
     currentChannel: String?,
     nickname: String,
     colorScheme: ColorScheme,
-    showMediaButtons: Boolean
+    showMediaButtons: Boolean,
+    onSOSClick: (() -> Unit)? = null
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -431,6 +450,8 @@ private fun ChatInputSection(
                 currentChannel = currentChannel,
                 nickname = nickname,
                 showMediaButtons = showMediaButtons,
+
+                onSOSClick = onSOSClick,
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -449,7 +470,8 @@ private fun ChatFloatingHeader(
     onShowAppInfo: () -> Unit,
     onPanicClear: () -> Unit,
     onLocationChannelsClick: () -> Unit,
-    onLocationNotesClick: () -> Unit
+    onLocationNotesClick: () -> Unit,
+    isGuardianMode: Boolean
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val locationManager = remember { com.bitchat.android.geohash.LocationChannelManager.getInstance(context) }
@@ -481,8 +503,10 @@ private fun ChatFloatingHeader(
                     onLocationNotesClick = {
                         // Ensure location is loaded before showing sheet
                         locationManager.refreshChannels()
+                        locationManager.refreshChannels()
                         onLocationNotesClick()
-                    }
+                    },
+                    isGuardianMode = isGuardianMode
                 )
             },
             colors = TopAppBarDefaults.topAppBarColors(
@@ -566,4 +590,43 @@ private fun ChatDialogs(
             viewModel = viewModel
         )
     }
+}
+
+@Composable
+fun SOSDialog(
+    onDismiss: () -> Unit,
+    onSendSOS: (String) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+             Row(verticalAlignment = Alignment.CenterVertically) {
+                 Icon(Icons.Filled.Warning, null, tint = Color.Red)
+                 Spacer(Modifier.width(8.dp))
+                 Text("EMERGENCY SOS", color = Color.Red, fontWeight = FontWeight.Bold)
+             }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Select situation to broadcast immediately:")
+                
+                Button(onClick = { onSendSOS("flood") }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF007AFF)), modifier = Modifier.fillMaxWidth()) {
+                    Text("🌊 FLOOD / DROWNING")
+                }
+                Button(onClick = { onSendSOS("food") }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF9500)), modifier = Modifier.fillMaxWidth()) {
+                    Text("🥪 NEED FOOD/WATER")
+                }
+                Button(onClick = { onSendSOS("medical") }, colors = ButtonDefaults.buttonColors(containerColor = Color.Red), modifier = Modifier.fillMaxWidth()) {
+                    Text("🚑 MEDICAL EMERGENCY")
+                }
+                Button(onClick = { onSendSOS("fire") }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF4444)), modifier = Modifier.fillMaxWidth()) {
+                    Text("🔥 FIRE / TRAPPED")
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }

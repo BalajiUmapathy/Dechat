@@ -100,7 +100,8 @@ class MessageHandler(private val myPeerID: String, private val appContext: andro
                             isPrivate = true,
                             recipientNickname = delegate?.getMyNickname(),
                             senderPeerID = peerID,
-                            mentions = null // TODO: Parse mentions if needed
+                            mentions = null, // TODO: Parse mentions if needed
+                            isGuardian = packet.isGuardian
                         )
                         
                         // Notify delegate
@@ -127,7 +128,8 @@ class MessageHandler(private val myPeerID: String, private val appContext: andro
                             isRelay = false,
                             isPrivate = true,
                             recipientNickname = delegate?.getMyNickname(),
-                            senderPeerID = peerID
+                            senderPeerID = peerID,
+                            isGuardian = packet.isGuardian
                         )
 
                         Log.d(TAG, "📄 Saved encrypted incoming file to $savedPath (msgId=$uniqueMsgId)")
@@ -390,7 +392,8 @@ class MessageHandler(private val myPeerID: String, private val appContext: andro
                     content = savedPath,
                     type = com.bitchat.android.features.file.FileUtils.messageTypeForMime(file.mimeType),
                     senderPeerID = peerID,
-                    timestamp = Date(packet.timestamp.toLong())
+                    timestamp = Date(packet.timestamp.toLong()),
+                    isGuardian = packet.isGuardian
                 )
                 Log.d(TAG, "📄 Saved incoming file to $savedPath")
                 delegate?.onMessageReceived(message)
@@ -404,7 +407,8 @@ class MessageHandler(private val myPeerID: String, private val appContext: andro
                 sender = delegate?.getPeerNickname(peerID) ?: "unknown",
                 content = String(packet.payload, Charsets.UTF_8),
                 senderPeerID = peerID,
-                timestamp = Date(packet.timestamp.toLong())
+                timestamp = Date(packet.timestamp.toLong()),
+                isGuardian = packet.isGuardian
             )
             delegate?.onMessageReceived(message)
         } catch (e: Exception) {
@@ -439,7 +443,8 @@ class MessageHandler(private val myPeerID: String, private val appContext: andro
                     senderPeerID = peerID,
                     timestamp = Date(packet.timestamp.toLong()),
                     isPrivate = true,
-                    recipientNickname = delegate?.getMyNickname()
+                    recipientNickname = delegate?.getMyNickname(),
+                    isGuardian = packet.isGuardian
                 )
                 Log.d(TAG, "📄 Saved incoming file to $savedPath")
                 delegate?.onMessageReceived(message)
@@ -453,7 +458,8 @@ class MessageHandler(private val myPeerID: String, private val appContext: andro
                 sender = delegate?.getPeerNickname(peerID) ?: "unknown",
                 content = String(packet.payload, Charsets.UTF_8),
                 senderPeerID = peerID,
-                timestamp = Date(packet.timestamp.toLong())
+                timestamp = Date(packet.timestamp.toLong()),
+                isGuardian = packet.isGuardian
             )
             delegate?.onMessageReceived(message)
 

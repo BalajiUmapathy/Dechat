@@ -24,7 +24,10 @@ class CommandProcessor(
         CommandSuggestion("/m", listOf("/msg"), "<nickname> [message]", "send private message"),
         CommandSuggestion("/slap", emptyList(), "<nickname>", "slap someone with a trout"),
         CommandSuggestion("/unblock", emptyList(), "<nickname>", "unblock a peer"),
-        CommandSuggestion("/w", emptyList(), null, "see who's online")
+        CommandSuggestion("/w", emptyList(), null, "see who's online"),
+        CommandSuggestion("/role", listOf("/r"), "<guardian|civilian>", "set your node role"),
+        CommandSuggestion("/sos", emptyList(), "<flood|food|medical|fire>", "send EMERGENCY priority signal"),
+        CommandSuggestion("/wipe", emptyList(), null, "IMMEDIATELY WIPE ALL DATA")
     )
 
     // MARK: - Command Processing
@@ -44,6 +47,9 @@ class CommandProcessor(
             "/hug" -> handleActionCommand(parts, "gives", "a warm hug 🫂", meshService, myPeerID, onSendMessage)
             "/slap" -> handleActionCommand(parts, "slaps", "around a bit with a large trout 🐟", meshService, myPeerID, onSendMessage)
             "/channels" -> handleChannelsCommand()
+            "/role", "/r" -> handleRoleCommand(parts)
+            "/sos" -> handleSOSCommand(parts, meshService, viewModel?.getApplication<android.app.Application>()?.applicationContext)
+            "/wipe" -> handleWipeCommand(viewModel)
             else -> handleUnknownCommand(cmd)
         }
 
@@ -422,5 +428,79 @@ class CommandProcessor(
         } else {
             nickname
         }
+    }
+
+    private fun handleRoleCommand(parts: List<String>) {
+        if (parts.size > 1) {
+            val role = parts[1].lowercase()
+            if (role == "guardian") {
+                state.setIsGuardianMode(true)
+                addSystemMessage("🛡️ You are now active as a Guardian Node.")
+            } else if (role == "civilian") {
+                state.setIsGuardianMode(false)
+                addSystemMessage("You are now a Civilian Node.")
+            } else {
+                addSystemMessage("usage: /role <guardian|civilian>")
+            }
+        } else {
+            val currentRole = if (state.getIsGuardianModeValue()) "Guardian 🛡️" else "Civilian"
+            addSystemMessage("Current Role: $currentRole (usage: /role <guardian|civilian>)")
+        }
+    }
+
+    private fun handleSOSCommand(parts: List<String>, meshService: BluetoothMeshService, context: android.content.Context?) {
+        val rawArg = if (parts.size > 1) parts.drop(1).joinToString(" ") else "EMERGENCY"
+        
+        // Predefined Emergency Shortcuts
+        val customMsg = when (rawArg.lowercase()) {
+            "flood" -> "🌊 TRAPPED IN FLOOD WATER - Need Evacuation!"
+            "food" -> "🥪 CRITICAL SHORTAGE - Need Food & Water"
+            "medical", "med" -> "🚑 MEDICAL EMERGENCY - Need Doctor/Ambulance"
+            "fire" -> "🔥 FIRE OUTBREAK - Need Assistance"
+            "rubble" -> "🧱 TRAPPED UNDER RUBBLE"
+            else -> rawArg // Fallback to whatever user typed
+        }
+        
+        // Context Awareness: Battery Level
+        val batteryLevel = try {
+            val bm = context?.getSystemService(android.content.Context.BATTERY_SERVICE) as? android.os.BatteryManager
+            bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
+        } catch (e: Exception) { -1 }
+
+        // Context Awareness: Location (Mock/Last Known for stability)
+        // In a real disaster app, this would query FusedLocationProvider
+        val locationStr = "[12.9716° N, 77.5946° E]" 
+
+        val richSOS = """
+            🚨 **SOS ALERT** 🚨
+            User: @${state.getNicknameValue() ?: "Unknown"}
+            Msg: **$customMsg**
+            📍 Loc: $locationStr
+            🔋 Batt: ${if (batteryLevel > 0) "$batteryLevel%" else "Unknown"}
+        """.trimIndent()
+
+        meshService.sendSOSMessage(richSOS)
+        addSystemMessage("🚨 SOS SIGNAL SENT: Broadcasting detailed status!")
+    }
+
+    private fun handleWipeCommand(viewModel: ChatViewModel?) {
+        if (viewModel == null) {
+            addSystemMessage("Error: Cannot execute wipe (ViewModel not attached)")
+            return
+        }
+        addSystemMessage("⚠️ INITIATING EMERGENCY WIPE Sequence...")
+        viewModel.panicClearAllData()
+        android.os.Process.killProcess(android.os.Process.myPid())
+        System.exit(0)
+    }
+
+    private fun addSystemMessage(text: String) {
+         val systemMessage = BitchatMessage(
+            sender = "system",
+            content = text,
+            timestamp = Date(),
+            isRelay = false
+        )
+        messageManager.addMessage(systemMessage)
     }
 }

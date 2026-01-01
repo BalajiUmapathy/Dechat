@@ -66,6 +66,9 @@ fun formatMessageAsAnnotatedString(
         val (baseName, suffix) = splitSuffix(message.sender)
         
         // Sender prefix "<@"
+        if (message.isGuardian) {
+            builder.append("🛡️ ")
+        }
         builder.pushStyle(SpanStyle(
             color = baseColor,
             fontSize = BASE_FONT_SIZE.sp,
@@ -178,6 +181,9 @@ fun formatMessageHeaderAnnotatedString(
         val (baseName, suffix) = splitSuffix(message.sender)
 
         // "<@"
+        if (message.isGuardian) {
+            builder.append("🛡️ ")
+        }
         builder.pushStyle(SpanStyle(
             color = baseColor,
             fontSize = BASE_FONT_SIZE.sp,

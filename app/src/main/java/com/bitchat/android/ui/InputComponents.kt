@@ -171,6 +171,7 @@ fun MessageInput(
     currentChannel: String?,
     nickname: String,
     showMediaButtons: Boolean,
+    onSOSClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val colorScheme = MaterialTheme.colorScheme
@@ -187,6 +188,28 @@ fun MessageInput(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        // SOS Button (Left side)
+        if (onSOSClick != null && value.text.isEmpty() && !isRecording) {
+            IconButton(
+                onClick = onSOSClick,
+                modifier = Modifier.size(32.dp)
+            ) {
+                 Box(
+                    modifier = Modifier
+                        .size(30.dp)
+                        .background(Color.Red, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "SOS",
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
         // Text input with placeholder OR visualizer when recording
         Box(
             modifier = Modifier.weight(1f)

@@ -122,6 +122,7 @@ class ChatViewModel(
     val isTeleported: LiveData<Boolean> = state.isTeleported
     val geohashPeople: LiveData<List<GeoPerson>> = state.geohashPeople
     val geohashParticipantCounts: LiveData<Map<String, Int>> = state.geohashParticipantCounts
+    val isGuardianMode: LiveData<Boolean> = state.isGuardianMode
 
     init {
         // Note: Mesh service delegate is now set by MainActivity
@@ -386,7 +387,7 @@ class ChatViewModel(
                     // Default: route via mesh
                     meshService.sendMessage(messageContent, mentions, channel)
                 }
-            })
+            }, viewModel = this)
             return
         }
         

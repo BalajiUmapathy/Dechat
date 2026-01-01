@@ -68,6 +68,10 @@ class ChatState {
     private val _passwordPromptChannel = MutableLiveData<String?>(null)
     val passwordPromptChannel: LiveData<String?> = _passwordPromptChannel
     
+    // Guardian / Role State
+    private val _isGuardianMode = MutableLiveData<Boolean>(false)
+    val isGuardianMode: LiveData<Boolean> = _isGuardianMode
+    
     // Sidebar state
     private val _showSidebar = MutableLiveData(false)
     val showSidebar: LiveData<Boolean> = _showSidebar
@@ -174,6 +178,7 @@ class ChatState {
     fun getPasswordProtectedChannelsValue() = _passwordProtectedChannels.value ?: emptySet()
     fun getShowPasswordPromptValue() = _showPasswordPrompt.value ?: false
     fun getPasswordPromptChannelValue() = _passwordPromptChannel.value
+    fun getIsGuardianModeValue() = _isGuardianMode.value ?: false
     fun getShowSidebarValue() = _showSidebar.value ?: false
     fun getShowCommandSuggestionsValue() = _showCommandSuggestions.value ?: false
     fun getCommandSuggestionsValue() = _commandSuggestions.value ?: emptyList()
@@ -248,6 +253,10 @@ class ChatState {
         _passwordPromptChannel.value = channel
     }
     
+    fun setIsGuardianMode(isGuardian: Boolean) {
+        _isGuardianMode.value = isGuardian
+    }
+    
     fun setShowSidebar(show: Boolean) {
         _showSidebar.value = show
     }
@@ -270,16 +279,8 @@ class ChatState {
 
     fun setFavoritePeers(favorites: Set<String>) {
         val currentValue = _favoritePeers.value ?: emptySet()
-        Log.d("ChatState", "setFavoritePeers called with ${favorites.size} favorites: $favorites")
-        Log.d("ChatState", "Current value: $currentValue")
-        Log.d("ChatState", "Values equal: ${currentValue == favorites}")
-        Log.d("ChatState", "Setting on thread: ${Thread.currentThread().name}")
-        
         // Always set the value - even if equal, this ensures observers are triggered
         _favoritePeers.value = favorites
-        
-        Log.d("ChatState", "LiveData value after set: ${_favoritePeers.value}")
-        Log.d("ChatState", "LiveData has active observers: ${_favoritePeers.hasActiveObservers()}")
     }
     
     fun setPeerSessionStates(states: Map<String, String>) {

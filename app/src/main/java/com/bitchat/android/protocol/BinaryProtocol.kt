@@ -59,7 +59,9 @@ data class BitchatPacket(
     val timestamp: ULong,
     val payload: ByteArray,
     var signature: ByteArray? = null,  // Changed from val to var for packet signing
-    var ttl: UByte
+    var ttl: UByte,
+    var isGuardian: Boolean = false,
+    var isPriority: Boolean = false
 ) : Parcelable {
 
     constructor(
@@ -97,7 +99,9 @@ data class BitchatPacket(
             timestamp = timestamp,
             payload = payload,
             signature = null, // Remove signature for signing
-            ttl = com.bitchat.android.util.AppConstants.SYNC_TTL_HOPS // Use fixed TTL=0 for signing to ensure relay compatibility
+            ttl = com.bitchat.android.util.AppConstants.SYNC_TTL_HOPS, // Use fixed TTL=0 for signing to ensure relay compatibility
+            isGuardian = isGuardian,
+            isPriority = isPriority
         )
         return BinaryProtocol.encode(unsignedPacket)
     }
@@ -149,6 +153,8 @@ data class BitchatPacket(
             if (!signature.contentEquals(other.signature)) return false
         } else if (other.signature != null) return false
         if (ttl != other.ttl) return false
+        if (isGuardian != other.isGuardian) return false
+        if (isPriority != other.isPriority) return false
 
         return true
     }
@@ -162,6 +168,8 @@ data class BitchatPacket(
         result = 31 * result + payload.contentHashCode()
         result = 31 * result + (signature?.contentHashCode() ?: 0)
         result = 31 * result + ttl.hashCode()
+        result = 31 * result + isGuardian.hashCode()
+        result = 31 * result + isPriority.hashCode()
         return result
     }
 }
@@ -180,6 +188,8 @@ object BinaryProtocol {
         const val HAS_RECIPIENT: UByte = 0x01u
         const val HAS_SIGNATURE: UByte = 0x02u
         const val IS_COMPRESSED: UByte = 0x04u
+        const val IS_GUARDIAN: UByte = 0x08u  // Guardian Node traffic
+        const val IS_PRIORITY: UByte = 0x10u  // SOS / High Priority traffic
     }
 
     private fun getHeaderSize(version: UByte): Int {
@@ -230,6 +240,12 @@ object BinaryProtocol {
             }
             if (isCompressed) {
                 flags = flags or Flags.IS_COMPRESSED
+            }
+            if (packet.isGuardian) {
+                flags = flags or Flags.IS_GUARDIAN
+            }
+            if (packet.isPriority) {
+                flags = flags or Flags.IS_PRIORITY
             }
             buffer.put(flags.toByte())
             
@@ -324,6 +340,8 @@ object BinaryProtocol {
             val hasRecipient = (flags and Flags.HAS_RECIPIENT) != 0u.toUByte()
             val hasSignature = (flags and Flags.HAS_SIGNATURE) != 0u.toUByte()
             val isCompressed = (flags and Flags.IS_COMPRESSED) != 0u.toUByte()
+            val isGuardian = (flags and Flags.IS_GUARDIAN) != 0u.toUByte()
+            val isPriority = (flags and Flags.IS_PRIORITY) != 0u.toUByte()
 
             // Payload length - version-dependent (2 or 4 bytes)
             val payloadLength = if (version >= 2u.toUByte()) {
@@ -383,7 +401,9 @@ object BinaryProtocol {
                 timestamp = timestamp,
                 payload = payload,
                 signature = signature,
-                ttl = ttl
+                ttl = ttl,
+                isGuardian = isGuardian,
+                isPriority = isPriority
             )
             
         } catch (e: Exception) {

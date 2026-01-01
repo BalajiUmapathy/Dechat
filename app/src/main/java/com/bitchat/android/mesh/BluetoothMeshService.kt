@@ -55,6 +55,7 @@ class BluetoothMeshService(private val context: Context) {
     
     // Service state management
     private var isActive = false
+    @Volatile var isGuardianMode: Boolean = false
     
     // Delegate for message callbacks (maintains same interface)
     var delegate: BluetoothMeshDelegate? = null
@@ -65,7 +66,6 @@ class BluetoothMeshService(private val context: Context) {
     init {
         setupDelegates()
         messageHandler.packetProcessor = packetProcessor
-        //startPeriodicDebugLogging()
 
         // Initialize sync manager (needs serviceScope)
         gossipSyncManager = GossipSyncManager(
@@ -598,13 +598,46 @@ class BluetoothMeshService(private val context: Context) {
                 timestamp = System.currentTimeMillis().toULong(),
                 payload = content.toByteArray(Charsets.UTF_8),
                 signature = null,
-                ttl = MAX_TTL
+                ttl = MAX_TTL,
+                isGuardian = isGuardianMode
             )
 
             // Sign the packet before broadcasting
             val signedPacket = signPacketBeforeBroadcast(packet)
             connectionManager.broadcastPacket(RoutedPacket(signedPacket))
             // Track our own broadcast message for sync
+            try { gossipSyncManager.onPublicPacketSeen(signedPacket) } catch (_: Exception) { }
+        }
+    }
+
+    /**
+     * Send Emergency SOS Message (Context-Aware Routing)
+     * High Priority, Max TTL, Immediate Broadcast
+     */
+    fun sendSOSMessage(content: String) {
+        if (content.isEmpty()) return
+        Log.w(TAG, "!!! SOS MODE ACTIVATED !!! Broadcasting SOS packet")
+        
+        serviceScope.launch {
+            val packet = BitchatPacket(
+                version = 1u,
+                type = MessageType.MESSAGE.value,
+                senderID = hexStringToByteArray(myPeerID),
+                recipientID = SpecialRecipients.BROADCAST,
+                timestamp = System.currentTimeMillis().toULong(),
+                payload = content.toByteArray(Charsets.UTF_8),
+                signature = null,
+                ttl = 10u, // Max TTL for emergency
+                isGuardian = isGuardianMode,
+                isPriority = true // Context-Aware Priority Flag
+            )
+
+            // Sign the packet before broadcasting
+            val signedPacket = signPacketBeforeBroadcast(packet)
+            Log.w(TAG, "Broadcasting SOS packet with TTL=10 (Bypassing Gossip Cache)")
+            connectionManager.broadcastPacket(RoutedPacket(signedPacket))
+            
+            // Track for sync (so others get it if they miss the flash flood)
             try { gossipSyncManager.onPublicPacketSeen(signedPacket) } catch (_: Exception) { }
         }
     }
