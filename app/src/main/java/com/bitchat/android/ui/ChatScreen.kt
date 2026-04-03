@@ -17,10 +17,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.FlashlightOn
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.IconButton
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
@@ -29,6 +33,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.zIndex
 import com.bitchat.android.model.BitchatMessage
 import com.bitchat.android.ui.media.FullScreenImageViewer
+import com.bitchat.android.features.MorseSOSController
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 
 /**
  * Main ChatScreen - REFACTORED to use component-based architecture
@@ -76,6 +83,9 @@ fun ChatScreen(viewModel: ChatViewModel, messages: List<BitchatMessage>) {
 
     var isScrolledUp by remember { mutableStateOf(false) }
     var showSOSDialog by remember { mutableStateOf(false) }
+    var showMorseSOSOverlay by remember { mutableStateOf(false) }
+    var showWalkieTalkie by remember { mutableStateOf(false) }  // Improvement 5
+    var showRadarMap by remember { mutableStateOf(false) }       // Improvement 6
 
     // Show password dialog when needed
     LaunchedEffect(showPasswordPrompt) {
@@ -241,7 +251,8 @@ fun ChatScreen(viewModel: ChatViewModel, messages: List<BitchatMessage>) {
                 colorScheme = colorScheme,
 
                 showMediaButtons = showMediaButtons,
-                onSOSClick = { showSOSDialog = true }
+                onSOSClick = { showSOSDialog = true },
+                viewModel = viewModel
             )
         }
 
@@ -258,6 +269,8 @@ fun ChatScreen(viewModel: ChatViewModel, messages: List<BitchatMessage>) {
             onPanicClear = { viewModel.panicClearAllData() },
             onLocationChannelsClick = { showLocationChannelsSheet = true },
             onLocationNotesClick = { showLocationNotesSheet = true },
+            onWalkieTalkieClick = { showWalkieTalkie = true },
+            onRadarMapClick = { showRadarMap = true },
             isGuardianMode = isGuardianMode
         )
 
@@ -387,9 +400,35 @@ fun ChatScreen(viewModel: ChatViewModel, messages: List<BitchatMessage>) {
         SOSDialog(
             onDismiss = { showSOSDialog = false },
             onSendSOS = { type ->
-                 showSOSDialog = false
-                 viewModel.sendMessage("/sos $type")
+                showSOSDialog = false
+                if (type == "morse") {
+                    showMorseSOSOverlay = true
+                } else {
+                    viewModel.sendMessage("/sos $type")
+                }
             }
+        )
+    }
+
+    if (showMorseSOSOverlay) {
+        MorseSOSOverlay(
+            onStop = { showMorseSOSOverlay = false }
+        )
+    }
+
+    // Improvement 5 — Dedicated Walkie-Talkie / Disaster Radio screen
+    if (showWalkieTalkie) {
+        WalkieTalkieScreen(
+            viewModel = viewModel,
+            onClose   = { showWalkieTalkie = false }
+        )
+    }
+
+    // Improvement 6 — Offline Radar Map with Peer Dots
+    if (showRadarMap) {
+        RadarMapScreen(
+            viewModel = viewModel,
+            onClose   = { showRadarMap = false }
         )
     }
 }
@@ -413,7 +452,8 @@ private fun ChatInputSection(
     nickname: String,
     colorScheme: ColorScheme,
     showMediaButtons: Boolean,
-    onSOSClick: (() -> Unit)? = null
+    onSOSClick: (() -> Unit)? = null,
+    viewModel: ChatViewModel? = null   // Improvement 5: PTT
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -450,8 +490,8 @@ private fun ChatInputSection(
                 currentChannel = currentChannel,
                 nickname = nickname,
                 showMediaButtons = showMediaButtons,
-
                 onSOSClick = onSOSClick,
+                viewModel = viewModel,
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -471,6 +511,8 @@ private fun ChatFloatingHeader(
     onPanicClear: () -> Unit,
     onLocationChannelsClick: () -> Unit,
     onLocationNotesClick: () -> Unit,
+    onWalkieTalkieClick: () -> Unit = {},   // Improvement 5
+    onRadarMapClick: () -> Unit = {},        // Improvement 6
     isGuardianMode: Boolean
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -506,6 +548,8 @@ private fun ChatFloatingHeader(
                         locationManager.refreshChannels()
                         onLocationNotesClick()
                     },
+                    onWalkieTalkieClick = onWalkieTalkieClick,
+                    onRadarMapClick = onRadarMapClick,
                     isGuardianMode = isGuardianMode
                 )
             },
@@ -609,7 +653,7 @@ fun SOSDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Select situation to broadcast immediately:")
-                
+
                 Button(onClick = { onSendSOS("flood") }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF007AFF)), modifier = Modifier.fillMaxWidth()) {
                     Text("🌊 FLOOD / DROWNING")
                 }
@@ -622,6 +666,20 @@ fun SOSDialog(
                 Button(onClick = { onSendSOS("fire") }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF4444)), modifier = Modifier.fillMaxWidth()) {
                     Text("🔥 FIRE / TRAPPED")
                 }
+                // Improvement 4 — Rubble type added to SOS dialog
+                Button(onClick = { onSendSOS("rubble") }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF795548)), modifier = Modifier.fillMaxWidth()) {
+                    Text("🧱 TRAPPED UNDER RUBBLE")
+                }
+                // Improvement 7 — Visual SOS via flashlight Morse code
+                Button(
+                    onClick = { onSendSOS("morse") },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF212121)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Filled.FlashlightOn, contentDescription = null, tint = Color.White)
+                    Spacer(Modifier.width(8.dp))
+                    Text("💡 VISUAL SOS (Flashlight Morse)", color = Color.White)
+                }
             }
         },
         confirmButton = {},
@@ -629,4 +687,70 @@ fun SOSDialog(
             TextButton(onClick = onDismiss) { Text("Cancel") }
         }
     )
+}
+
+/**
+ * Full-screen overlay shown while Morse SOS is active.
+ * Starts the flashlight SOS loop and keeps it running until the user taps STOP.
+ */
+@Composable
+fun MorseSOSOverlay(onStop: () -> Unit) {
+    val context = LocalContext.current
+    val controller = remember { MorseSOSController(context) }
+
+    // Start flashing when this composable enters composition
+    LaunchedEffect(Unit) {
+        controller.startSOS()
+    }
+
+    // Stop flashing when this composable leaves composition
+    DisposableEffect(Unit) {
+        onDispose { controller.stopSOS() }
+    }
+
+    Dialog(
+        onDismissRequest = {},
+        properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnBackPress = false, dismissOnClickOutside = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    "· · · — — — · · ·",
+                    color = Color(0xFFFF6700),
+                    fontSize = 32.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "MORSE SOS ACTIVE",
+                    color = Color.Red,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "Flashlight is signalling rescuers",
+                    color = Color.Gray,
+                    fontSize = 14.sp
+                )
+                Spacer(Modifier.height(24.dp))
+                Button(
+                    onClick = {
+                        controller.stopSOS()
+                        onStop()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) {
+                    Text("STOP FLASHING", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
 }

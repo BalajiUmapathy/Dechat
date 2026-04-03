@@ -109,6 +109,10 @@ class PacketProcessor(private val myPeerID: String) {
                 return delegate?.getBroadcastRecipient() ?: ByteArray(0)
             }
             
+            override fun isGuardianMode(): Boolean {
+                return delegate?.isGuardianMode() ?: false
+            }
+            
             override fun broadcastPacket(routed: RoutedPacket) {
                 delegate?.relayPacket(routed)
             }
@@ -309,6 +313,7 @@ interface PacketProcessorDelegate {
     // Network information
     fun getNetworkSize(): Int
     fun getBroadcastRecipient(): ByteArray
+    fun isGuardianMode(): Boolean
     
     // Message type handlers
     fun handleNoiseHandshake(routed: RoutedPacket): Boolean

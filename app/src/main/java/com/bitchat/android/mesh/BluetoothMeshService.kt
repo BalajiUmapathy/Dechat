@@ -366,6 +366,34 @@ class BluetoothMeshService(private val context: Context) {
             override fun onReadReceiptReceived(messageID: String, peerID: String) {
                 delegate?.didReceiveReadReceipt(messageID, peerID)
             }
+
+            // Improvement 2: SOS Acknowledgement System
+            override fun sendSOSAck(ackContent: String) {
+                // Broadcast the ACK as a low-priority MESSAGE packet back to the mesh
+                serviceScope.launch {
+                    val packet = BitchatPacket(
+                        version = 1u,
+                        type = MessageType.MESSAGE.value,
+                        senderID = hexStringToByteArray(myPeerID),
+                        recipientID = com.bitchat.android.protocol.SpecialRecipients.BROADCAST,
+                        timestamp = System.currentTimeMillis().toULong(),
+                        payload = ackContent.toByteArray(Charsets.UTF_8),
+                        signature = null,
+                        ttl = MAX_TTL,
+                        isGuardian = isGuardianMode,
+                        isPriority = false  // ACK is NOT an SOS — must not trigger another ACK loop
+                    )
+                    val signed = signPacketBeforeBroadcast(packet)
+                    connectionManager.broadcastPacket(com.bitchat.android.model.RoutedPacket(signed))
+                    Log.w(TAG, "\uD83D\uDCE1 SOS ACK broadcast sent")
+                }
+            }
+
+            override fun onSOSAckReceived(responderNickname: String, isGuardian: Boolean, responderPeerID: String) {
+                delegate?.didReceiveSOSAck(responderNickname, isGuardian, responderPeerID)
+            }
+
+            override fun isGuardianMode(): Boolean = this@BluetoothMeshService.isGuardianMode
         }
         
         // PacketProcessor delegates
@@ -389,6 +417,11 @@ class BluetoothMeshService(private val context: Context) {
             
             override fun getBroadcastRecipient(): ByteArray {
                 return SpecialRecipients.BROADCAST
+            }
+
+            // Pass Guardian mode status to PacketRelayManager for SOS priority relay
+            override fun isGuardianMode(): Boolean {
+                return this@BluetoothMeshService.isGuardianMode
             }
             
             override fun handleNoiseHandshake(routed: RoutedPacket): Boolean {
@@ -1219,5 +1252,7 @@ interface BluetoothMeshDelegate {
     fun decryptChannelMessage(encryptedContent: ByteArray, channel: String): String?
     fun getNickname(): String?
     fun isFavorite(peerID: String): Boolean
+    // Improvement 2: SOS Acknowledgement System
+    fun didReceiveSOSAck(responderNickname: String, isGuardian: Boolean, responderPeerID: String)
     // registerPeerPublicKey REMOVED - fingerprints now handled centrally in PeerManager
 }

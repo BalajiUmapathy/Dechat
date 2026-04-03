@@ -203,6 +203,30 @@ class MeshDelegateHandler(
             messageManager.updateMessageDeliveryStatus(messageID, DeliveryStatus.Read(recipientPeerID, Date()))
         }
     }
+
+    /**
+     * Improvement 2: SOS Acknowledgement System
+     * Called when a peer broadcasts a [SOS_ACK] in response to our SOS.
+     * Injects a system message into the public chat: "📡 SOS received by @nick 🛡️"
+     * Guardian ACKs are visually distinct (shield emoji).
+     */
+    override fun didReceiveSOSAck(responderNickname: String, isGuardian: Boolean, responderPeerID: String) {
+        coroutineScope.launch {
+            val guardianTag = if (isGuardian) " 🛡️ (Guardian)" else ""
+            val ackText = "📡 SOS received by @$responderNickname$guardianTag"
+            android.util.Log.w("MeshDelegateHandler", ackText)
+
+            // Add as a system message shown in the public mesh chat feed
+            val sysMessage = com.bitchat.android.model.BitchatMessage(
+                sender = "system",
+                content = ackText,
+                timestamp = Date(),
+                isRelay = false,
+                senderPeerID = responderPeerID
+            )
+            messageManager.addMessage(sysMessage)
+        }
+    }
     
     override fun decryptChannelMessage(encryptedContent: ByteArray, channel: String): String? {
         return channelManager.decryptChannelMessage(encryptedContent, channel)

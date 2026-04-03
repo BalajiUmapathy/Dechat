@@ -10,9 +10,8 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
-// These imports are NOT here, as you said.
-// import com.bitchat.android.model.ThemePreference
-// import com.bitchat.android.services.ThemePreferenceManager
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
@@ -45,15 +44,30 @@ private val LightColorScheme = lightColorScheme(
     onError = Color.White
 )
 
-
+/**
+ * BUG FIX: Theme toggle now works correctly.
+ *
+ * Previously BitchatTheme took a nullable darkTheme Boolean that was always
+ * passed as null from MainActivity, so the saved user preference (Dark/Light/System)
+ * was completely ignored and the app always followed the system theme.
+ *
+ * Now BitchatTheme reads ThemePreferenceManager.themeFlow via collectAsState(),
+ * so any change to the preference in the About sheet is immediately reflected
+ * throughout the app without requiring a restart.
+ */
 @Composable
 fun BitchatTheme(
-    darkTheme: Boolean? = null,
     content: @Composable () -> Unit
 ) {
-    // This logic was not in your file, so it is gone.
-    // We will just use the simple darkTheme boolean.
-    val shouldUseDark = darkTheme ?: isSystemInDarkTheme()
+    // Collect the saved theme preference reactively — any change triggers recomposition
+    val themePref by ThemePreferenceManager.themeFlow.collectAsState()
+
+    // Resolve the saved preference to a boolean for color scheme selection
+    val shouldUseDark = when (themePref) {
+        ThemePreference.Dark   -> true                  // User explicitly chose Dark
+        ThemePreference.Light  -> false                 // User explicitly chose Light
+        ThemePreference.System -> isSystemInDarkTheme() // Follow Android system setting
+    }
 
     val colorScheme = if (shouldUseDark) DarkColorScheme else LightColorScheme
 
@@ -80,7 +94,7 @@ fun BitchatTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography, // This was in your original file
+        typography = Typography,
         content = content
     )
 }

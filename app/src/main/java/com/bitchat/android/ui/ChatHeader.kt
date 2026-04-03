@@ -242,6 +242,8 @@ fun ChatHeaderContent(
     onShowAppInfo: () -> Unit,
     onLocationChannelsClick: () -> Unit,
     onLocationNotesClick: () -> Unit,
+    onWalkieTalkieClick: () -> Unit = {},   // Improvement 5
+    onRadarMapClick: () -> Unit = {},        // Improvement 6
     isGuardianMode: Boolean
 ) {
     val colorScheme = MaterialTheme.colorScheme
@@ -300,6 +302,8 @@ fun ChatHeaderContent(
                 onSidebarClick = onSidebarClick,
                 onLocationChannelsClick = onLocationChannelsClick,
                 onLocationNotesClick = onLocationNotesClick,
+                onWalkieTalkieClick = onWalkieTalkieClick,
+                onRadarMapClick = onRadarMapClick,
                 viewModel = viewModel
             )
         }
@@ -523,6 +527,8 @@ private fun MainHeader(
     onSidebarClick: () -> Unit,
     onLocationChannelsClick: () -> Unit,
     onLocationNotesClick: () -> Unit,
+    onWalkieTalkieClick: () -> Unit = {},   // Improvement 5
+    onRadarMapClick: () -> Unit = {},        // Improvement 6
     viewModel: ChatViewModel
 ) {
     val colorScheme = MaterialTheme.colorScheme
@@ -631,6 +637,32 @@ private fun MainHeader(
                 viewModel = viewModel,
                 onClick = onLocationNotesClick
             )
+
+            // Improvement 5: Walkie-Talkie radio button
+            IconButton(
+                onClick = onWalkieTalkieClick,
+                modifier = Modifier.size(24.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Radio,
+                    contentDescription = "Walkie-Talkie",
+                    tint = Color(0xFFFFAA00),   // amber — matches radio screen palette
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+
+            // Improvement 6: Radar Map button
+            IconButton(
+                onClick = onRadarMapClick,
+                modifier = Modifier.size(24.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.MyLocation,
+                    contentDescription = "Radar Map",
+                    tint = Color(0xFF00FF41),   // green — matches radar CRT palette
+                    modifier = Modifier.size(18.dp)
+                )
+            }
 
             // Tor status dot when Tor is enabled
             TorStatusDot(

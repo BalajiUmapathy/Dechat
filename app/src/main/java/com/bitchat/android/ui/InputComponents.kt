@@ -172,6 +172,7 @@ fun MessageInput(
     nickname: String,
     showMediaButtons: Boolean,
     onSOSClick: (() -> Unit)? = null,
+    viewModel: ChatViewModel? = null,           // Improvement 5: PTT
     modifier: Modifier = Modifier
 ) {
     val colorScheme = MaterialTheme.colorScheme
@@ -209,6 +210,9 @@ fun MessageInput(
                 }
             }
         }
+
+        // Improvement 5: PTT Walkie-Talkie Button removed from here.
+        // It lives in the dedicated WalkieTalkieScreen instead.
 
         // Text input with placeholder OR visualizer when recording
         Box(

@@ -451,14 +451,25 @@ class CommandProcessor(
     private fun handleSOSCommand(parts: List<String>, meshService: BluetoothMeshService, context: android.content.Context?) {
         val rawArg = if (parts.size > 1) parts.drop(1).joinToString(" ") else "EMERGENCY"
         
-        // Predefined Emergency Shortcuts
-        val customMsg = when (rawArg.lowercase()) {
-            "flood" -> "🌊 TRAPPED IN FLOOD WATER - Need Evacuation!"
-            "food" -> "🥪 CRITICAL SHORTAGE - Need Food & Water"
-            "medical", "med" -> "🚑 MEDICAL EMERGENCY - Need Doctor/Ambulance"
-            "fire" -> "🔥 FIRE OUTBREAK - Need Assistance"
-            "rubble" -> "🧱 TRAPPED UNDER RUBBLE"
-            else -> rawArg // Fallback to whatever user typed
+        // Predefined Emergency Shortcuts with emoji indicators
+        val emergencyMap = mapOf(
+            "flood" to "🌊 TRAPPED IN FLOOD WATER - Need Evacuation!",
+            "food" to "🥪 CRITICAL SHORTAGE - Need Food & Water",
+            "medical" to "🚑 MEDICAL EMERGENCY - Need Doctor/Ambulance",
+            "med" to "🚑 MEDICAL EMERGENCY - Need Doctor/Ambulance",
+            "fire" to "🔥 FIRE OUTBREAK - Need Assistance",
+            "rubble" to "🧱 TRAPPED UNDER RUBBLE"
+        )
+        
+        val emergencyType = rawArg.lowercase()
+        val customMsg = emergencyMap[emergencyType] ?: rawArg // Fallback to whatever user typed
+        val displayType = when (emergencyType) {
+            "flood" -> "FLOOD"
+            "food" -> "FOOD/WATER"
+            "medical", "med" -> "MEDICAL"
+            "fire" -> "FIRE"
+            "rubble" -> "RUBBLE"
+            else -> emergencyType.uppercase()
         }
         
         // Context Awareness: Battery Level
@@ -467,20 +478,33 @@ class CommandProcessor(
             bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
         } catch (e: Exception) { -1 }
 
-        // Context Awareness: Location (Mock/Last Known for stability)
-        // In a real disaster app, this would query FusedLocationProvider
-        val locationStr = "[12.9716° N, 77.5946° E]" 
+        // Context Awareness: Real GPS location via FusedLocationProvider
+        val locationStr = if (context != null) {
+            LocationHelper.getLastKnownLocation(context)
+        } else {
+            ""
+        }
 
-        val richSOS = """
-            🚨 **SOS ALERT** 🚨
-            User: @${state.getNicknameValue() ?: "Unknown"}
-            Msg: **$customMsg**
-            📍 Loc: $locationStr
-            🔋 Batt: ${if (batteryLevel > 0) "$batteryLevel%" else "Unknown"}
-        """.trimIndent()
+        // Build message parts only with available data
+        val messageParts = mutableListOf(
+            "🚨 **SOS ALERT** 🚨",
+            "Type: **$displayType EMERGENCY**",
+            "User: @${state.getNicknameValue() ?: "Unknown"}",
+            "Msg: $customMsg"
+        )
+
+        // Add location only if successfully retrieved (no error messages)
+        if (locationStr.isNotEmpty()) {
+            messageParts.add(locationStr)
+        }
+
+        // Add battery level
+        messageParts.add("🔋 Battery: ${if (batteryLevel > 0) "$batteryLevel%" else "Unknown"}")
+
+        val richSOS = messageParts.joinToString("\n")
 
         meshService.sendSOSMessage(richSOS)
-        addSystemMessage("🚨 SOS SIGNAL SENT: Broadcasting detailed status!")
+        addSystemMessage("🚨 SOS SIGNAL SENT: **$displayType EMERGENCY** Broadcasting${if (locationStr.isNotEmpty()) " with location" else ""}!")
     }
 
     private fun handleWipeCommand(viewModel: ChatViewModel?) {

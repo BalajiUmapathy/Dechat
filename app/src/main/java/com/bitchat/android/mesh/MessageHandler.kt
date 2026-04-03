@@ -373,7 +373,7 @@ class MessageHandler(private val myPeerID: String, private val appContext: andro
         // Enforce: only accept public messages from verified peers we know
         val peerInfo = delegate?.getPeerInfo(peerID)
         if (peerInfo == null || !peerInfo.isVerifiedNickname) {
-            Log.w(TAG, "🚫 Dropping public message from unverified or unknown peer ${peerID.take(8)}...")
+            Log.w(TAG, "\uD83D\uDEAB Dropping public message from unverified or unknown peer ${peerID.take(8)}...")
             return
         }
         
@@ -383,7 +383,7 @@ class MessageHandler(private val myPeerID: String, private val appContext: andro
             val file = com.bitchat.android.model.BitchatFilePacket.decode(packet.payload)
             if (file != null) {
                 if (isFileTransfer) {
-                    Log.d(TAG, "📥 FILE_TRANSFER decode success (broadcast): name='${file.fileName}', size=${file.fileSize}, mime='${file.mimeType}', from=${peerID.take(8)}")
+                    Log.d(TAG, "\uD83D\uDCE5 FILE_TRANSFER decode success (broadcast): name='${file.fileName}', size=${file.fileSize}, mime='${file.mimeType}', from=${peerID.take(8)}")
                 }
                 val savedPath = com.bitchat.android.features.file.FileUtils.saveIncomingFile(appContext, file)
                 val message = BitchatMessage(
@@ -395,17 +395,42 @@ class MessageHandler(private val myPeerID: String, private val appContext: andro
                     timestamp = Date(packet.timestamp.toLong()),
                     isGuardian = packet.isGuardian
                 )
-                Log.d(TAG, "📄 Saved incoming file to $savedPath")
+                Log.d(TAG, "\uD83D\uDCC4 Saved incoming file to $savedPath")
                 delegate?.onMessageReceived(message)
                 return
             } else if (isFileTransfer) {
-                Log.w(TAG, "⚠️ FILE_TRANSFER decode failed (broadcast) from ${peerID.take(8)} payloadSize=${packet.payload.size}")
+                Log.w(TAG, "\u26A0\uFE0F FILE_TRANSFER decode failed (broadcast) from ${peerID.take(8)} payloadSize=${packet.payload.size}")
             }
+
+            val content = String(packet.payload, Charsets.UTF_8)
+
+            // ---- Improvement 2: SOS Acknowledgement System ----
+
+            // (A) Incoming SOS ACK — parse and notify, do NOT show as normal chat message
+            if (content.startsWith("[SOS_ACK]:")) {
+                // Format: [SOS_ACK]:responderNickname:isGuardian
+                val parts = content.removePrefix("[SOS_ACK]:").split(":")
+                val responderNickname = parts.getOrNull(0) ?: "unknown"
+                val isGuardian = parts.getOrNull(1)?.toBooleanStrictOrNull() ?: false
+                Log.w(TAG, "\uD83D\uDCE1 SOS ACK received from @$responderNickname (guardian=$isGuardian)")
+                delegate?.onSOSAckReceived(responderNickname, isGuardian, peerID)
+                return  // Do NOT add to normal message list
+            }
+
+            // (B) Incoming SOS packet — auto-send an ACK back to the mesh
+            if (packet.isPriority && packet.type == com.bitchat.android.protocol.MessageType.MESSAGE.value) {
+                val myNickname = delegate?.getMyNickname() ?: "unknown"
+                val amGuardian = delegate?.isGuardianMode() ?: false
+                val ackContent = "[SOS_ACK]:$myNickname:$amGuardian"
+                Log.w(TAG, "\uD83D\uDCE1 SOS detected from $peerID — broadcasting ACK as @$myNickname")
+                delegate?.sendSOSAck(ackContent)
+            }
+            // --------------------------------------------------
 
             // Fallback: plain text
             val message = BitchatMessage(
                 sender = delegate?.getPeerNickname(peerID) ?: "unknown",
-                content = String(packet.payload, Charsets.UTF_8),
+                content = content,
                 senderPeerID = peerID,
                 timestamp = Date(packet.timestamp.toLong()),
                 isGuardian = packet.isGuardian
@@ -617,4 +642,9 @@ interface MessageHandlerDelegate {
     fun onChannelLeave(channel: String, fromPeer: String)
     fun onDeliveryAckReceived(messageID: String, peerID: String)
     fun onReadReceiptReceived(messageID: String, peerID: String)
+
+    // Improvement 2: SOS Acknowledgement System
+    fun sendSOSAck(ackContent: String)          // Broadcasts a [SOS_ACK] message back to mesh
+    fun onSOSAckReceived(responderNickname: String, isGuardian: Boolean, responderPeerID: String)
+    fun isGuardianMode(): Boolean               // Needed to tag outgoing ACKs as guardian
 }

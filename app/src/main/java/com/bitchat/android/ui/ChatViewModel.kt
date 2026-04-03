@@ -5,7 +5,9 @@ import android.util.Log
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
+import com.bitchat.android.features.voice.PTTRecorder
 import com.bitchat.android.mesh.BluetoothMeshDelegate
 import com.bitchat.android.mesh.BluetoothMeshService
 import com.bitchat.android.model.BitchatMessage
@@ -65,6 +67,41 @@ class ChatViewModel(
 
     // Media file sending manager
     private val mediaSendingManager = MediaSendingManager(state, messageManager, channelManager, meshService)
+
+    // Improvement 5: Push-to-Talk (PTT) Walkie-Talkie
+    private val pttRecorder = PTTRecorder(application.applicationContext)
+    private val _isPTTTransmitting = MutableLiveData(false)
+    val isPTTTransmitting: LiveData<Boolean> = _isPTTTransmitting
+
+    /** Hold-to-talk: start recording when PTT button is pressed. */
+    fun startPTT() {
+        val started = pttRecorder.startPTT(
+            scope = viewModelScope,
+            onMaxDuration = {
+                // Auto-stop when 10-second cap is hit
+                stopPTT()
+            }
+        )
+        if (started) {
+            _isPTTTransmitting.postValue(true)
+            Log.w(TAG, "🎙️ PTT started")
+        }
+    }
+
+    /** Release-to-send: stop recording and send via existing voice-note path. */
+    fun stopPTT() {
+        val filePath = pttRecorder.stopPTT()
+        _isPTTTransmitting.postValue(false)
+        if (filePath != null) {
+            Log.w(TAG, "🎙️ PTT finished — sending voice note: $filePath")
+            // Reuse the existing FILE_TRANSFER voice note path — works for both public and private chat
+            val peer = state.getSelectedPrivateChatPeerValue()
+            val channel = state.getCurrentChannelValue()
+            sendVoiceNote(peer, channel, filePath)
+        } else {
+            Log.w(TAG, "PTT: no audio captured (too short or mic error)")
+        }
+    }
     
     // Delegate handler for mesh callbacks
     private val meshDelegateHandler = MeshDelegateHandler(
@@ -687,6 +724,11 @@ class ChatViewModel(
     
     override fun isFavorite(peerID: String): Boolean {
         return meshDelegateHandler.isFavorite(peerID)
+    }
+
+    // Improvement 2: SOS Acknowledgement System
+    override fun didReceiveSOSAck(responderNickname: String, isGuardian: Boolean, responderPeerID: String) {
+        meshDelegateHandler.didReceiveSOSAck(responderNickname, isGuardian, responderPeerID)
     }
     
     // registerPeerPublicKey REMOVED - fingerprints now handled centrally in PeerManager
